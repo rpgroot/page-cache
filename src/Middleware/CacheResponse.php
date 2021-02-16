@@ -3,6 +3,7 @@
 namespace Silber\PageCache\Middleware;
 
 use Closure;
+use Illuminate\Support\Facades\File;
 use Silber\PageCache\Cache;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -35,7 +36,26 @@ class CacheResponse
      */
     public function handle(Request $request, Closure $next)
     {
-        $response = $next($request);
+        if ($request->isMethod('GET')) {
+
+            $segments = explode('/', ltrim($request->getPathInfo(), '/'));
+            $filename = array_pop($segments);
+            $filename = $this->cache->aliasFilename($filename);
+            $filename = md5($filename);
+            $extension = $this->cache->guessFileExtension($request);
+
+            $path = $this->cache->getCachePath(implode('/', $segments));
+
+            $file = "{$filename}.{$extension}";
+
+            $fullpath = $this->cache->join([$path, $file]);
+
+            if (file_exists( $fullpath)) {
+//                echo "cache hint";
+                return response(File::get( $fullpath));
+            }
+        }
+            $response = $next($request);
 
         if ($this->shouldCache($request, $response)) {
             $this->cache->cache($request, $response);
